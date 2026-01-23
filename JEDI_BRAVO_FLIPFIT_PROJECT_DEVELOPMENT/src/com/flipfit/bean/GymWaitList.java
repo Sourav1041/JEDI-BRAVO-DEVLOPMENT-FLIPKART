@@ -1,5 +1,5 @@
 package com.flipfit.bean;
 
-public class WaitList {
+public class GymWaitList {
 
 }

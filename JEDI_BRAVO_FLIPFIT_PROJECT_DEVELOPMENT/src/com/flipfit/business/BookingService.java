@@ -1,4 +1,4 @@
-package com.flipfit.service;
+package com.flipfit.business;
 
 public interface BookingService {
 

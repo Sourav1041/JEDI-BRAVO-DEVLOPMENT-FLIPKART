@@ -1,5 +1,12 @@
 package com.flipfit.bean;
 
-public class Booking {
+import com.flipfit.enums.BookingStatus;
 
+public class Booking {
+	private String BookingId ;
+	private GymUser gymUser ;
+	private GymSlot gymSlot ;
+	private String dateAndTime ;
+	private BookingStatus bookingStatus ;
+	
 }

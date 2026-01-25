@@ -53,5 +53,7 @@ public class CustomerServiceImpl implements CustomerService {
 	public boolean cancelBooking(String bookingId) {
 		return bookingService.cancelBooking(bookingId);
 	}
+
+
 }
 

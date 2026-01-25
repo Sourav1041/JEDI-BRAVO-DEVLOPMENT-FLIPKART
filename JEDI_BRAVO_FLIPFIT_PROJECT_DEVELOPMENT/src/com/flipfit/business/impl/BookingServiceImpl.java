@@ -54,6 +54,17 @@ public class BookingServiceImpl implements BookingService {
 			booking.setBookingStatus(BookingStatus.WAITLIST);
 			DataStore.addToWaitlist(slot.getSlotId(), booking);
 			System.out.println("Slot full. Added to waitlist with id: " + bookingId);
+
+			//suggesting nearest time slot
+			LocalTime suggestion = nearestTimeSlot(center, localDate, startTime);
+			if (suggestion != null) {
+				System.out.println("Notification: The slot at " + startTime + " is full. " +
+						"The next slot available is at " + suggestion + ".");
+			} else {
+				System.out.println("Notification: The slot at " + startTime + " is full. " +
+						"There are no other time slots available for the day.");
+			}
+
 			return bookingId;
 		}
 	}
@@ -132,5 +143,15 @@ public class BookingServiceImpl implements BookingService {
 			}
 		}
 		return null;
+	}
+
+	private LocalTime nearestTimeSlot(GymCenter center, LocalDate date, LocalTime requestedStartTime) {
+		return center.getCenterSlot().stream()
+				.filter(slot -> slot.getStartTime().isAfter(requestedStartTime))
+				.filter(slot -> hasCapacity(slot, date))
+				.sorted((s1, s2) -> s1.getStartTime().compareTo(s2.getStartTime()))
+				.map(GymSlot::getStartTime)
+				.findFirst()
+				.orElse(null); // Returns null if no later slot has capacity
 	}
 }

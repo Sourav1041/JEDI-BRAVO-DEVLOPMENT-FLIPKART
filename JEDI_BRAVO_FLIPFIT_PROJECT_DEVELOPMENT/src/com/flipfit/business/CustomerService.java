@@ -19,5 +19,6 @@ public interface CustomerService {
 	List<Booking> viewBookings(String userId);
 
 	boolean cancelBooking(String bookingId);
+
 }
 

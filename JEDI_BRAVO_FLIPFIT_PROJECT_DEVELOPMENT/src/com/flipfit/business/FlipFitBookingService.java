@@ -25,7 +25,7 @@ public class FlipFitBookingService implements BookingService {
 
     public FlipFitBookingService() {
         this.bookingDAO = new BookingDAO();
-        this.gymDAO = new GymCentreDAO();
+        this.gymDAO = new GymCentreDAOImpl();
     }
 
     /**

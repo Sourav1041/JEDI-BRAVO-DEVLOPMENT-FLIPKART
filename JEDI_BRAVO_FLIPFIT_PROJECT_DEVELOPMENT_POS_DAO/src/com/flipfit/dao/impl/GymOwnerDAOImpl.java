@@ -199,7 +199,16 @@ public class GymOwnerDAOImpl implements GymOwnerDAO {
     private GymOwner mapResultSetToGymOwner(ResultSet rs) throws SQLException {
         GymOwner owner = new GymOwner();
         
-        // Get user information
+        owner.setOwnerId(rs.getString("owner_id"));
+        owner.setUserId(rs.getString("user_id"));
+        owner.setPanCard(rs.getString("pan_card"));
+        owner.setAadharCard(rs.getString("aadhar_card"));
+        owner.setGstNumber(rs.getString("gst_number"));
+        owner.setApproved(rs.getBoolean("is_approved"));
+        owner.setApprovalDate(rs.getTimestamp("approval_date"));
+        owner.setCreatedAt(rs.getTimestamp("created_at"));
+        
+        // Get user information (optional)
         String userId = rs.getString("user_id");
         GymUser user = gymUserDAO.getUserById(userId);
         owner.setUser(user);

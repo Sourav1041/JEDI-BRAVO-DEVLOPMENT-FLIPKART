@@ -1,6 +1,11 @@
 package com.flipfit.client;
 
+import com.flipfit.bean.Booking;
+import com.flipfit.bean.GymCenter;
+import com.flipfit.bean.GymSlot;
 import com.flipfit.bean.GymUser;
+import com.flipfit.business.BookingService;
+import com.flipfit.business.impl.BookingServiceImpl;
 import com.flipfit.dao.GymUserDAO;
 import com.flipfit.dao.GymOwnerDAO;
 import com.flipfit.dao.GymCustomerDAO;
@@ -10,7 +15,11 @@ import com.flipfit.dao.impl.GymOwnerDAOImpl;
 import com.flipfit.dao.impl.GymCustomerDAOImpl;
 import com.flipfit.dao.impl.GymAdminDAOImpl;
 import com.flipfit.enums.Role;
+import com.flipfit.exception.BookingFailedException;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -25,9 +34,14 @@ public class DAOClientApp {
     private static GymOwnerDAO ownerDAO = new GymOwnerDAOImpl();
     private static GymCustomerDAO customerDAO = new GymCustomerDAOImpl();
     private static GymAdminDAO adminDAO = new GymAdminDAOImpl();
+    private static BookingService bookingService = new BookingServiceImpl();
+    private static com.flipfit.dao.GymCenterDAO centerDAO = new com.flipfit.dao.impl.GymCenterDAOImpl();
+    private static com.flipfit.dao.GymSlotDAO slotDAO = new com.flipfit.dao.impl.GymSlotDAOImpl();
     private static Scanner scanner = new Scanner(System.in);
     
     private static GymUser currentUser = null;
+    private static String currentCustomerId = null;
+    private static String currentOwnerId = null;
     
     public static void main(String[] args) {
         System.out.println("===========================================");
@@ -89,11 +103,20 @@ public class DAOClientApp {
         
         if (currentUser != null && currentUser.getRole() == Role.CUSTOMER) {
             System.out.println("✓ Login successful! Welcome " + currentUser.getName());
+            // Get customer ID for booking operations
+            var customers = customerDAO.getAllGymCustomers();
+            for (GymUser cust : customers) {
+                if (cust.getEmail().equals(currentUser.getEmail())) {
+                    currentCustomerId = cust.getUserId(); // This will be the customer_id from GymCustomer table
+                    break;
+                }
+            }
             customerMenu();
         } else {
             System.out.println("✗ Invalid credentials or not a customer account!");
         }
         currentUser = null;
+        currentCustomerId = null;
     }
     
     /**
@@ -111,11 +134,17 @@ public class DAOClientApp {
         
         if (currentUser != null && currentUser.getRole() == Role.GYM_OWNER) {
             System.out.println("✓ Login successful! Welcome " + currentUser.getName());
+            // Get owner ID
+            var owner = ownerDAO.getGymOwnerByUserId(currentUser.getUserId());
+            if (owner != null) {
+                currentOwnerId = owner.getOwnerId();
+            }
             gymOwnerMenu();
         } else {
             System.out.println("✗ Invalid credentials or not a gym owner account!");
         }
         currentUser = null;
+        currentOwnerId = null;
     }
     
     /**
@@ -197,9 +226,17 @@ public class DAOClientApp {
             System.out.println("\n========== CUSTOMER MENU ==========");
             System.out.println("1. View Profile");
             System.out.println("2. Update Profile");
-            System.out.println("3. View All Gym Centers");
-            System.out.println("4. View My Bookings");
-            System.out.println("5. Logout");
+            System.out.println("3. View Available Slots by City");
+            System.out.println("4. View Available Slots by Center");
+            System.out.println("5. Book a Slot");
+            System.out.println("6. View My Bookings");
+            System.out.println("7. View My Plan (By Date)");
+            System.out.println("8. Cancel a Booking");
+            System.out.println("9. Join Waitlist");
+            System.out.println("10. Find Nearest Available Slot");
+            System.out.println("11. View My Notifications");
+            System.out.println("12. View All Gym Centers");
+            System.out.println("13. Logout");
             System.out.println("===================================");
             System.out.print("Enter your choice: ");
             
@@ -214,12 +251,36 @@ public class DAOClientApp {
                     updateProfile();
                     break;
                 case 3:
-                    viewAllGymCenters();
+                    viewAvailableSlotsByCity();
                     break;
                 case 4:
-                    System.out.println("My Bookings feature - Coming soon!");
+                    viewAvailableSlotsByCenter();
                     break;
                 case 5:
+                    bookSlot();
+                    break;
+                case 6:
+                    viewMyBookings();
+                    break;
+                case 7:
+                    viewMyPlanByDate();
+                    break;
+                case 8:
+                    cancelBooking();
+                    break;
+                case 9:
+                    joinWaitlist();
+                    break;
+                case 10:
+                    findNearestSlot();
+                    break;
+                case 11:
+                    viewNotifications();
+                    break;
+                case 12:
+                    viewAllGymCenters();
+                    break;
+                case 13:
                     loggedIn = false;
                     System.out.println("✓ Logged out successfully!");
                     break;
@@ -254,16 +315,16 @@ public class DAOClientApp {
                     displayUser(currentUser);
                     break;
                 case 2:
-                    System.out.println("Add Gym Center feature - Coming soon!");
+                    addGymCenter();
                     break;
                 case 3:
-                    System.out.println("My Gym Centers feature - Coming soon!");
+                    viewMyGymCenters();
                     break;
                 case 4:
-                    System.out.println("Add Gym Slots feature - Coming soon!");
+                    addGymSlots();
                     break;
                 case 5:
-                    System.out.println("Approval Status feature - Coming soon!");
+                    viewApprovalStatus();
                     break;
                 case 6:
                     loggedIn = false;
@@ -306,7 +367,7 @@ public class DAOClientApp {
                     approveGymOwnerMenu();
                     break;
                 case 4:
-                    System.out.println("Approve Gym Centers feature - Coming soon!");
+                    approveGymCenterMenu();
                     break;
                 case 5:
                     viewAllGymCenters();
@@ -414,17 +475,31 @@ public class DAOClientApp {
      */
     private static void viewAllGymCenters() {
         System.out.println("\n--- All Gym Centers ---");
-        var centers = adminDAO.getAllGymCenters();
+        System.out.print("Enter City (or press Enter for all cities): ");
+        String city = scanner.nextLine();
+        
+        List<GymCenter> centers;
+        if (city.isEmpty()) {
+            centers = adminDAO.getAllGymCenters();
+        } else {
+            centers = bookingService.viewGymCentersByCity(city);
+        }
         
         if (centers.isEmpty()) {
             System.out.println("No gym centers found!");
         } else {
             System.out.println("Total Gym Centers: " + centers.size());
-            for (var center : centers) {
-                System.out.println("\nID: " + center.getCenterId());
-                System.out.println("City: " + center.getCenterCity());
-                System.out.println("Location: " + center.getCenterLocn());
-                System.out.println("-------------------");
+            System.out.println("===============================================");
+            for (GymCenter center : centers) {
+                System.out.println("\nGym ID: " + center.getGymId());
+                System.out.println("Name: " + center.getGymName());
+                System.out.println("Address: " + center.getGymAddress());
+                System.out.println("City: " + center.getCity() + ", " + center.getState() + " - " + center.getPincode());
+                System.out.println("Phone: " + center.getPhoneNumber());
+                System.out.println("Email: " + center.getEmail());
+                System.out.println("Total Slots: " + center.getTotalSlots());
+                System.out.println("Approved: " + (center.isApproved() ? "Yes" : "No"));
+                System.out.println("-----------------------------------------------");
             }
         }
     }
@@ -439,5 +514,596 @@ public class DAOClientApp {
         System.out.println("Email: " + user.getEmail());
         System.out.println("Address: " + user.getAddress());
         System.out.println("Role: " + user.getRole());
+    }
+    
+    // ========== BOOKING FEATURES ==========
+    
+    /**
+     * View available slots by city
+     */
+    private static void viewAvailableSlotsByCity() {
+        System.out.println("\n--- View Available Slots by City ---");
+        System.out.print("Enter City Name: ");
+        String city = scanner.nextLine();
+        
+        List<GymSlot> slots = bookingService.viewAvailableSlotsByCity(city);
+        
+        if (slots.isEmpty()) {
+            System.out.println("No available slots found for " + city);
+        } else {
+            System.out.println("\nAvailable Slots in " + city + ":");
+            System.out.println("===============================================");
+            for (GymSlot slot : slots) {
+                System.out.println("Slot ID: " + slot.getSlotId());
+                System.out.println("Gym ID: " + slot.getGymId());
+                System.out.println("Time: " + slot.getStartTime() + " - " + slot.getEndTime());
+                System.out.println("Available Seats: " + slot.getAvailableSeats() + "/" + slot.getTotalSeats());
+                System.out.println("Price: Rs. " + slot.getPrice());
+                System.out.println("-----------------------------------------------");
+            }
+        }
+    }
+    
+    /**
+     * View available slots by gym center
+     */
+    private static void viewAvailableSlotsByCenter() {
+        System.out.println("\n--- View Available Slots by Gym ---");
+        System.out.print("Enter Gym ID: ");
+        String gymId = scanner.nextLine();
+        
+        List<GymSlot> slots = bookingService.viewAvailableSlots(gymId);
+        
+        if (slots.isEmpty()) {
+            System.out.println("No available slots found for this gym");
+        } else {
+            System.out.println("\nAvailable Slots for Gym " + gymId + ":");
+            System.out.println("===============================================");
+            for (GymSlot slot : slots) {
+                System.out.println("Slot ID: " + slot.getSlotId());
+                System.out.println("Time: " + slot.getStartTime() + " - " + slot.getEndTime());
+                System.out.println("Available Seats: " + slot.getAvailableSeats() + "/" + slot.getTotalSeats());
+                System.out.println("Price: Rs. " + slot.getPrice());
+                System.out.println("-----------------------------------------------");
+            }
+        }
+    }
+    
+    /**
+     * Book a slot
+     */
+    private static void bookSlot() {
+        System.out.println("\n--- Book a Slot ---");
+        System.out.print("Enter Slot ID: ");
+        String slotId = scanner.nextLine();
+        
+        System.out.print("Enter Booking Date (yyyy-MM-dd) or press Enter for today: ");
+        String dateStr = scanner.nextLine();
+        
+        LocalDate bookingDate = LocalDate.now();
+        if (!dateStr.isEmpty()) {
+            try {
+                bookingDate = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+            } catch (DateTimeParseException e) {
+                System.out.println("Invalid date format. Using today's date.");
+            }
+        }
+        
+        if (currentCustomerId == null) {
+            // Fallback: use user ID as customer ID
+            currentCustomerId = currentUser.getUserId();
+        }
+        
+        try {
+            Booking booking = bookingService.bookSlot(currentCustomerId, slotId, bookingDate);
+            System.out.println("\n========================================");
+            System.out.println("       BOOKING SUCCESSFUL!");
+            System.out.println("========================================");
+            System.out.println("Booking ID: " + booking.getBookingId());
+            System.out.println("Slot ID: " + booking.getSlotId());
+            System.out.println("Booking Date: " + booking.getBookingDate());
+            System.out.println("Status: " + booking.getBookingStatus());
+            System.out.println("========================================");
+        } catch (BookingFailedException e) {
+            System.out.println("\n*** BOOKING FAILED ***");
+            System.out.println("Reason: " + e.getMessage());
+            System.out.println("**********************");
+        }
+    }
+    
+    /**
+     * View my bookings
+     */
+    private static void viewMyBookings() {
+        System.out.println("\n--- My Bookings ---");
+        
+        if (currentCustomerId == null) {
+            currentCustomerId = currentUser.getUserId();
+        }
+        
+        List<Booking> bookings = bookingService.viewMyBookings(currentCustomerId);
+        
+        if (bookings.isEmpty()) {
+            System.out.println("You have no bookings yet.");
+        } else {
+            System.out.println("Total Bookings: " + bookings.size());
+            System.out.println("===============================================");
+            for (Booking booking : bookings) {
+                System.out.println("Booking ID: " + booking.getBookingId());
+                System.out.println("Slot ID: " + booking.getSlotId());
+                System.out.println("Booking Date: " + booking.getBookingDate());
+                System.out.println("Status: " + booking.getBookingStatus());
+                System.out.println("-----------------------------------------------");
+            }
+        }
+    }
+    
+    /**
+     * View my plan by date
+     */
+    private static void viewMyPlanByDate() {
+        System.out.println("\n--- My Plan for a Specific Date ---");
+        System.out.print("Enter Date (yyyy-MM-dd): ");
+        String dateStr = scanner.nextLine();
+        
+        LocalDate date;
+        try {
+            date = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (DateTimeParseException e) {
+            System.out.println("Invalid date format. Using today's date.");
+            date = LocalDate.now();
+        }
+        
+        if (currentCustomerId == null) {
+            currentCustomerId = currentUser.getUserId();
+        }
+        
+        List<Booking> bookings = bookingService.viewPlanByDate(currentCustomerId, date);
+        
+        if (bookings.isEmpty()) {
+            System.out.println("No bookings found for " + date);
+        } else {
+            System.out.println("\nYour Plan for " + date + ":");
+            System.out.println("===============================================");
+            for (Booking booking : bookings) {
+                System.out.println("Booking ID: " + booking.getBookingId());
+                System.out.println("Slot ID: " + booking.getSlotId());
+                System.out.println("Status: " + booking.getBookingStatus());
+                System.out.println("-----------------------------------------------");
+            }
+        }
+    }
+    
+    /**
+     * Cancel a booking
+     */
+    private static void cancelBooking() {
+        System.out.println("\n--- Cancel a Booking ---");
+        System.out.print("Enter Booking ID: ");
+        String bookingId = scanner.nextLine();
+        
+        System.out.print("Are you sure you want to cancel this booking? (yes/no): ");
+        String confirm = scanner.nextLine();
+        
+        if (confirm.equalsIgnoreCase("yes")) {
+            try {
+                boolean cancelled = bookingService.cancelBooking(bookingId);
+                if (cancelled) {
+                    System.out.println("\n========================================");
+                    System.out.println("   BOOKING CANCELLED SUCCESSFULLY!");
+                    System.out.println("   Your seat has been released.");
+                    System.out.println("========================================");
+                }
+            } catch (BookingFailedException e) {
+                System.out.println("\n*** CANCELLATION FAILED ***");
+                System.out.println("Reason: " + e.getMessage());
+                System.out.println("***************************");
+            }
+        } else {
+            System.out.println("Cancellation aborted.");
+        }
+    }
+    
+    /**
+     * Join waitlist for a full slot
+     */
+    private static void joinWaitlist() {
+        System.out.println("\n--- Join Waitlist ---");
+        System.out.print("Enter Slot ID: ");
+        String slotId = scanner.nextLine();
+        
+        System.out.print("Enter Requested Date (yyyy-MM-dd) or press Enter for today: ");
+        String dateStr = scanner.nextLine();
+        
+        LocalDate requestedDate = LocalDate.now();
+        if (!dateStr.isEmpty()) {
+            try {
+                requestedDate = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+            } catch (DateTimeParseException e) {
+                System.out.println("Invalid date format. Using today's date.");
+            }
+        }
+        
+        if (currentCustomerId == null) {
+            currentCustomerId = currentUser.getUserId();
+        }
+        
+        boolean added = bookingService.addToWaitList(currentCustomerId, slotId, requestedDate);
+        
+        if (added) {
+            System.out.println("\n========================================");
+            System.out.println("  ADDED TO WAITLIST SUCCESSFULLY!");
+            System.out.println("  You will be notified if a seat becomes available.");
+            System.out.println("========================================");
+        } else {
+            System.out.println("Failed to add to waitlist!");
+        }
+    }
+    
+    /**
+     * Find nearest available slot
+     */
+    private static void findNearestSlot() {
+        System.out.println("\n--- Find Nearest Available Slot ---");
+        System.out.print("Enter Gym ID: ");
+        String gymId = scanner.nextLine();
+        
+        System.out.print("Enter Preferred Time (HH:mm) e.g., 07:00: ");
+        String timeStr = scanner.nextLine();
+        
+        java.time.LocalTime preferredTime = java.time.LocalTime.parse(timeStr);
+        
+        GymSlot nearestSlot = bookingService.findNearestAvailableSlot(gymId, preferredTime);
+        
+        if (nearestSlot != null) {
+            System.out.println("\n========================================");
+            System.out.println("    NEAREST AVAILABLE SLOT FOUND!");
+            System.out.println("========================================");
+            System.out.println("Slot ID: " + nearestSlot.getSlotId());
+            System.out.println("Gym ID: " + nearestSlot.getGymId());
+            System.out.println("Time: " + nearestSlot.getStartTime() + " - " + nearestSlot.getEndTime());
+            System.out.println("Available Seats: " + nearestSlot.getAvailableSeats() + "/" + nearestSlot.getTotalSeats());
+            System.out.println("Price: Rs. " + nearestSlot.getPrice());
+            System.out.println("========================================");
+        } else {
+            System.out.println("No available slots found for this gym.");
+        }
+    }
+    
+    /**
+     * View notifications
+     */
+    private static void viewNotifications() {
+        System.out.println("\n--- My Notifications ---");
+        
+        if (currentUser == null) {
+            System.out.println("User not found!");
+            return;
+        }
+        
+        List<com.flipfit.bean.Notification> notifications = bookingService.getNotifications(currentUser.getUserId());
+        
+        if (notifications.isEmpty()) {
+            System.out.println("No notifications.");
+        } else {
+            System.out.println("Total Notifications: " + notifications.size());
+            System.out.println("===============================================");
+            int count = 1;
+            for (com.flipfit.bean.Notification notification : notifications) {
+                System.out.print(count++ + ". ");
+                if (!notification.isRead()) {
+                    System.out.print("[NEW] ");
+                }
+                System.out.println(notification.getTitle());
+                System.out.println("   " + notification.getMessage());
+                System.out.println("   Type: " + notification.getNotificationType());
+                System.out.println();
+            }
+            System.out.println("===============================================");
+        }
+    }
+    
+    // ========== GYM OWNER FEATURES ==========
+    
+    /**
+     * Add a new gym center
+     */
+    private static void addGymCenter() {
+        System.out.println("\n========== ADD GYM CENTER ==========");
+        
+        if (currentOwnerId == null) {
+            System.out.println("Error: Owner ID not found!");
+            return;
+        }
+        
+        System.out.print("Enter Gym Name: ");
+        String gymName = scanner.nextLine();
+        
+        System.out.print("Enter Gym Address: ");
+        String gymAddress = scanner.nextLine();
+        
+        System.out.print("Enter City: ");
+        String city = scanner.nextLine();
+        
+        System.out.print("Enter State: ");
+        String state = scanner.nextLine();
+        
+        System.out.print("Enter Pincode: ");
+        String pincode = scanner.nextLine();
+        
+        System.out.print("Enter Phone Number: ");
+        String phoneNumber = scanner.nextLine();
+        
+        System.out.print("Enter Email: ");
+        String email = scanner.nextLine();
+        
+        System.out.print("Enter Total Slots to offer: ");
+        int totalSlots = scanner.nextInt();
+        scanner.nextLine();
+        
+        // Create gym center object
+        String gymId = "GYM" + System.currentTimeMillis();
+        GymCenter center = new GymCenter();
+        center.setGymId(gymId);
+        center.setOwnerId(currentOwnerId);
+        center.setGymName(gymName);
+        center.setGymAddress(gymAddress);
+        center.setCity(city);
+        center.setState(state);
+        center.setPincode(pincode);
+        center.setPhoneNumber(phoneNumber);
+        center.setEmail(email);
+        center.setTotalSlots(totalSlots);
+        center.setApproved(false);  // Pending approval
+        
+        boolean added = centerDAO.insertGymCenter(center);
+        
+        if (added) {
+            System.out.println("\n========================================");
+            System.out.println("   GYM CENTER ADDED SUCCESSFULLY!");
+            System.out.println("========================================");
+            System.out.println("Gym ID: " + gymId);
+            System.out.println("Status: Pending Admin Approval");
+            System.out.println("========================================");
+        } else {
+            System.out.println("Failed to add gym center!");
+        }
+    }
+    
+    /**
+     * View gym centers owned by current owner
+     */
+    private static void viewMyGymCenters() {
+        System.out.println("\n========== MY GYM CENTERS ==========");
+        
+        if (currentOwnerId == null) {
+            System.out.println("Error: Owner ID not found!");
+            return;
+        }
+        
+        List<GymCenter> centers = centerDAO.getGymCentersByOwner(currentOwnerId);
+        
+        if (centers.isEmpty()) {
+            System.out.println("You don't have any gym centers yet.");
+            System.out.println("Add a new gym center from the menu!");
+        } else {
+            System.out.println("Total Gym Centers: " + centers.size());
+            System.out.println("===============================================");
+            for (GymCenter center : centers) {
+                System.out.println("\nGym ID: " + center.getGymId());
+                System.out.println("Name: " + center.getGymName());
+                System.out.println("Address: " + center.getGymAddress());
+                System.out.println("City: " + center.getCity() + ", " + center.getState() + " - " + center.getPincode());
+                System.out.println("Phone: " + center.getPhoneNumber());
+                System.out.println("Email: " + center.getEmail());
+                System.out.println("Total Slots: " + center.getTotalSlots());
+                System.out.println("Status: " + (center.isApproved() ? "APPROVED" : "PENDING APPROVAL"));
+                if (center.getApprovalDate() != null) {
+                    System.out.println("Approved On: " + center.getApprovalDate());
+                }
+                System.out.println("-----------------------------------------------");
+            }
+        }
+    }
+    
+    /**
+     * Add slots to a gym center
+     */
+    private static void addGymSlots() {
+        System.out.println("\n========== ADD GYM SLOTS ==========");
+        
+        if (currentOwnerId == null) {
+            System.out.println("Error: Owner ID not found!");
+            return;
+        }
+        
+        // First show owner's gym centers
+        List<GymCenter> centers = centerDAO.getGymCentersByOwner(currentOwnerId);
+        
+        if (centers.isEmpty()) {
+            System.out.println("You don't have any gym centers yet.");
+            System.out.println("Please add a gym center first!");
+            return;
+        }
+        
+        System.out.println("\nYour Gym Centers:");
+        for (int i = 0; i < centers.size(); i++) {
+            GymCenter center = centers.get(i);
+            System.out.println((i + 1) + ". " + center.getGymName() + " (" + center.getGymId() + ") - " +
+                             (center.isApproved() ? "APPROVED" : "PENDING"));
+        }
+        
+        System.out.print("\nSelect Gym Center (1-" + centers.size() + "): ");
+        int centerChoice = scanner.nextInt();
+        scanner.nextLine();
+        
+        if (centerChoice < 1 || centerChoice > centers.size()) {
+            System.out.println("Invalid choice!");
+            return;
+        }
+        
+        GymCenter selectedCenter = centers.get(centerChoice - 1);
+        
+        System.out.print("Enter Start Time (HH:mm, e.g., 06:00): ");
+        String startTimeStr = scanner.nextLine();
+        
+        System.out.print("Enter End Time (HH:mm, e.g., 07:00): ");
+        String endTimeStr = scanner.nextLine();
+        
+        System.out.print("Enter Total Seats: ");
+        int totalSeats = scanner.nextInt();
+        
+        System.out.print("Enter Price (Rs.): ");
+        double price = scanner.nextDouble();
+        scanner.nextLine();
+        
+        // Create slot
+        String slotId = "SLT" + System.currentTimeMillis();
+        GymSlot slot = new GymSlot();
+        slot.setSlotId(slotId);
+        slot.setGymId(selectedCenter.getGymId());
+        slot.setStartTime(java.time.LocalTime.parse(startTimeStr));
+        slot.setEndTime(java.time.LocalTime.parse(endTimeStr));
+        slot.setTotalSeats(totalSeats);
+        slot.setAvailableSeats(totalSeats);
+        slot.setPrice(java.math.BigDecimal.valueOf(price));
+        slot.setActive(true);
+        
+        boolean added = slotDAO.insertSlot(slot);
+        
+        if (added) {
+            System.out.println("\n========================================");
+            System.out.println("    SLOT ADDED SUCCESSFULLY!");
+            System.out.println("========================================");
+            System.out.println("Slot ID: " + slotId);
+            System.out.println("Gym: " + selectedCenter.getGymName());
+            System.out.println("Time: " + startTimeStr + " - " + endTimeStr);
+            System.out.println("Seats: " + totalSeats);
+            System.out.println("Price: Rs. " + price);
+            System.out.println("========================================");
+        } else {
+            System.out.println("Failed to add slot!");
+        }
+    }
+    
+    /**
+     * View approval status of gym centers
+     */
+    private static void viewApprovalStatus() {
+        System.out.println("\n========== APPROVAL STATUS ==========");
+        
+        if (currentOwnerId == null) {
+            System.out.println("Error: Owner ID not found!");
+            return;
+        }
+        
+        // Check gym owner approval
+        var owner = ownerDAO.getGymOwnerById(currentOwnerId);
+        if (owner != null) {
+            System.out.println("\nGym Owner Account:");
+            System.out.println("Status: " + (owner.isApproved() ? "APPROVED" : "PENDING APPROVAL"));
+            if (owner.getApprovalDate() != null) {
+                System.out.println("Approved On: " + owner.getApprovalDate());
+            }
+        }
+        
+        // Check gym centers approval
+        List<GymCenter> centers = centerDAO.getGymCentersByOwner(currentOwnerId);
+        
+        if (centers.isEmpty()) {
+            System.out.println("\nNo gym centers registered yet.");
+        } else {
+            System.out.println("\n===============================================");
+            System.out.println("GYM CENTERS APPROVAL STATUS:");
+            System.out.println("===============================================");
+            
+            int approved = 0;
+            int pending = 0;
+            
+            for (GymCenter center : centers) {
+                System.out.println("\nGym: " + center.getGymName());
+                System.out.println("ID: " + center.getGymId());
+                System.out.println("Status: " + (center.isApproved() ? "APPROVED" : "PENDING APPROVAL"));
+                if (center.getApprovalDate() != null) {
+                    System.out.println("Approved On: " + center.getApprovalDate());
+                }
+                System.out.println("-----------------------------------------------");
+                
+                if (center.isApproved()) {
+                    approved++;
+                } else {
+                    pending++;
+                }
+            }
+            
+            System.out.println("\nSummary: " + approved + " Approved, " + pending + " Pending");
+        }
+    }
+    
+    // ========== ADMIN FEATURES ==========
+    
+    /**
+     * Approve gym centers
+     */
+    private static void approveGymCenterMenu() {
+        System.out.println("\n========== APPROVE GYM CENTERS ==========");
+        
+        List<GymCenter> pendingCenters = adminDAO.getPendingGymCenterApprovals();
+        
+        if (pendingCenters.isEmpty()) {
+            System.out.println("No pending gym center approvals.");
+            return;
+        }
+        
+        System.out.println("Pending Gym Centers: " + pendingCenters.size());
+        System.out.println("===============================================");
+        
+        for (int i = 0; i < pendingCenters.size(); i++) {
+            GymCenter center = pendingCenters.get(i);
+            System.out.println("\n" + (i + 1) + ". Gym ID: " + center.getGymId());
+            System.out.println("   Name: " + center.getGymName());
+            System.out.println("   Owner ID: " + center.getOwnerId());
+            System.out.println("   Address: " + center.getGymAddress());
+            System.out.println("   City: " + center.getCity() + ", " + center.getState());
+            System.out.println("   Phone: " + center.getPhoneNumber());
+            System.out.println("   Email: " + center.getEmail());
+            System.out.println("   Total Slots: " + center.getTotalSlots());
+        }
+        
+        System.out.println("\n===============================================");
+        System.out.print("Select gym center to approve (1-" + pendingCenters.size() + ") or 0 to cancel: ");
+        int choice = scanner.nextInt();
+        scanner.nextLine();
+        
+        if (choice == 0) {
+            return;
+        }
+        
+        if (choice < 1 || choice > pendingCenters.size()) {
+            System.out.println("Invalid choice!");
+            return;
+        }
+        
+        GymCenter selectedCenter = pendingCenters.get(choice - 1);
+        
+        System.out.print("Approve this gym center? (yes/no): ");
+        String confirm = scanner.nextLine();
+        
+        if (confirm.equalsIgnoreCase("yes")) {
+            boolean approved = adminDAO.approveGymCenter(selectedCenter.getGymId());
+            
+            if (approved) {
+                System.out.println("\n========================================");
+                System.out.println("   GYM CENTER APPROVED SUCCESSFULLY!");
+                System.out.println("========================================");
+                System.out.println("Gym: " + selectedCenter.getGymName());
+                System.out.println("ID: " + selectedCenter.getGymId());
+                System.out.println("========================================");
+            } else {
+                System.out.println("Failed to approve gym center!");
+            }
+        } else {
+            System.out.println("Approval cancelled.");
+        }
     }
 }

@@ -1,17 +1,26 @@
 package com.flipfit.bean;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalTime;
 
 /**
+ * The Class GymSlot.
  * Represents a specific time slot at a gym center.
  * Handles availability logic for the booking service.
+ * 
+ * @author JEDI-BRAVO
  */
 public class GymSlot {
 	private String slotId;
+	private String gymId;
 	private LocalTime startTime;
 	private LocalTime endTime;
 	private int totalSeats;
 	private int availableSeats;
+	private BigDecimal price;
+	private boolean isActive;
+	private Timestamp createdAt;
 
 	public String getSlotId() {
 		return slotId;
@@ -19,6 +28,14 @@ public class GymSlot {
 
 	public void setSlotId(String slotId) {
 		this.slotId = slotId;
+	}
+
+	public String getGymId() {
+		return gymId;
+	}
+
+	public void setGymId(String gymId) {
+		this.gymId = gymId;
 	}
 
 	public LocalTime getStartTime() {
@@ -53,8 +70,32 @@ public class GymSlot {
 		this.availableSeats = availableSeats;
 	}
 
+	public BigDecimal getPrice() {
+		return price;
+	}
+
+	public void setPrice(BigDecimal price) {
+		this.price = price;
+	}
+
+	public boolean isActive() {
+		return isActive;
+	}
+
+	public void setActive(boolean active) {
+		isActive = active;
+	}
+
+	public Timestamp getCreatedAt() {
+		return createdAt;
+	}
+
+	public void setCreatedAt(Timestamp createdAt) {
+		this.createdAt = createdAt;
+	}
+
 	public boolean isAvailable() {
-		return availableSeats > 0;
+		return availableSeats > 0 && isActive;
 	}
 
 	public void decreaseAvailability() {

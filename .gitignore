@@ -22,6 +22,7 @@ build/
 
 # Package Files #
 *.jar
+!mysql-connector-java.jar
 *.war
 *.ear
 

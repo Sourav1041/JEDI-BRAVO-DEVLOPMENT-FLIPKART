@@ -1,14 +1,14 @@
 package com.flipfit.business.impl;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import com.flipfit.bean.Booking;
 import com.flipfit.bean.GymCenter;
 import com.flipfit.bean.GymSlot;
 import com.flipfit.business.GymOwnerService;
 import com.flipfit.helper.DataStore;
+import java.time.LocalTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class GymOwnerServiceImpl implements GymOwnerService {
 
@@ -29,6 +29,49 @@ public class GymOwnerServiceImpl implements GymOwnerService {
 		if (center != null) {
 			center.getCenterSlot().add(slot);
 		}
+	}
+	@Override
+	public void modifySlot(String centerId, String slotId, LocalTime startTime, LocalTime endTime, Integer totalSeats, Integer availableSeats)
+	{
+		GymCenter center = DataStore.getCenter(centerId);
+
+    	if (center == null) {
+        	System.out.println("Gym Center not found");
+        	return;
+    	}
+
+    	List<GymSlot> slots = center.getCenterSlot();
+
+    	if (slots == null || slots.isEmpty()) {
+        	System.out.println("Gym Slot not found");
+        	return;
+    	}
+
+    	for (GymSlot slot : slots) {
+
+        	if (slot.getSlotId().equals(slotId)) {
+
+            	if (startTime != null) {
+                	slot.setStartTime(startTime);
+            	}
+
+            	if (endTime != null) {
+                	slot.setEndTime(endTime);
+            	}
+
+            	if (totalSeats != null) {
+                	slot.setTotalSeats(totalSeats);
+            	}
+
+            	if (availableSeats != null) {
+                	slot.setAvailableSeats(availableSeats);
+            	}
+
+            	System.out.println("Slot modified successfully");
+            	return;
+        	}
+    	}
+		System.out.println("Slot ID not found");
 	}
 
 	@Override

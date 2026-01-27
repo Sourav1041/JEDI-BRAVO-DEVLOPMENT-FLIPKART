@@ -251,10 +251,20 @@ public class GymAdminDAOImpl implements GymAdminDAO {
      */
     private GymCenter mapResultSetToGymCenter(ResultSet rs) throws SQLException {
         GymCenter center = new GymCenter();
-        center.setCenterId(rs.getString("gym_id"));
-        center.setCenterLocn(rs.getString("gym_address"));
-        center.setCenterCity(rs.getString("city"));
+        center.setGymId(rs.getString("gym_id"));
         center.setOwnerId(rs.getString("owner_id"));
+        center.setGymName(rs.getString("gym_name"));
+        center.setGymAddress(rs.getString("gym_address"));
+        center.setCity(rs.getString("city"));
+        center.setState(rs.getString("state"));
+        center.setPincode(rs.getString("pincode"));
+        center.setPhoneNumber(rs.getString("phone_number"));
+        center.setEmail(rs.getString("email"));
+        center.setTotalSlots(rs.getInt("total_slots"));
+        center.setApproved(rs.getBoolean("is_approved"));
+        center.setApprovalDate(rs.getTimestamp("approval_date"));
+        center.setCreatedAt(rs.getTimestamp("created_at"));
+        center.setUpdatedAt(rs.getTimestamp("updated_at"));
         return center;
     }
 }

@@ -1,0 +1,25 @@
+# FlipFit Dropwizard REST API Configuration File
+
+# Server Configuration
+server:
+  applicationConnectors:
+    - type: http
+      port: 8080
+  adminConnectors:
+    - type: http
+      port: 8081
+
+# Logging Configuration
+logging:
+  level: INFO
+  loggers:
+    com.flipfit: DEBUG
+  appenders:
+    - type: console
+      threshold: ALL
+      target: stdout
+      logFormat: "%-5level [%date{ISO8601}] %logger{36} - %msg%n"
+
+# Application Configuration
+applicationName: FlipFit REST API
+version: 1.0

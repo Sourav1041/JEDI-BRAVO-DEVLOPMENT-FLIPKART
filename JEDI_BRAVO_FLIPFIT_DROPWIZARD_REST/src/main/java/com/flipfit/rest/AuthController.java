@@ -1,5 +1,6 @@
 package com.flipfit.rest;
 
+import com.flipfit.bean.GymCustomer;
 import com.flipfit.bean.GymUser;
 import com.flipfit.business.CustomerService;
 import com.flipfit.business.GymOwnerService;
@@ -77,6 +78,25 @@ public class AuthController {
             response.put("address", user.getAddress());
             response.put("loginTime", formattedLoginTime);
             response.put("welcomeMessage", "Welcome " + user.getName() + "!");
+            
+            // For customers, fetch the customer_id from GymCustomer table
+            if (role == Role.CUSTOMER) {
+                try {
+                    java.sql.Connection conn = com.flipfit.utils.DBConnection.getConnection();
+                    java.sql.PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT customer_id FROM GymCustomer WHERE user_id = ?"
+                    );
+                    stmt.setString(1, user.getUserId());
+                    java.sql.ResultSet rs = stmt.executeQuery();
+                    if (rs.next()) {
+                        response.put("customerId", rs.getString("customer_id"));
+                    }
+                    rs.close();
+                    stmt.close();
+                } catch (Exception e) {
+                    System.err.println("Error fetching customer_id: " + e.getMessage());
+                }
+            }
             
             if (user == null) {
                 Map<String, String> error = new HashMap<>();

@@ -249,7 +249,7 @@ public class SQLConstants {
     
     /** The constant for selecting bookings by customer. */
     public static final String SELECT_BOOKINGS_BY_CUSTOMER = 
-        "SELECT b.*, s.start_time, s.end_time, c.gym_name, c.city, c.gym_address FROM Booking b JOIN GymSlot s ON b.slot_id = s.slot_id JOIN GymCenter c ON s.gym_id = c.gym_id WHERE b.customer_id = ? ORDER BY b.booking_date DESC, s.start_time DESC";
+        "SELECT b.*, s.start_time, s.end_time, c.gym_name, c.city, c.gym_address FROM Booking b JOIN GymSlot s ON b.slot_id = s.slot_id JOIN GymCenter c ON s.gym_id = c.gym_id WHERE b.customer_id = ? AND b.booking_status = 'CONFIRMED' ORDER BY b.booking_date DESC, s.start_time DESC";
     
     /** The constant for selecting bookings by slot. */
     public static final String SELECT_BOOKINGS_BY_SLOT = 
@@ -261,7 +261,7 @@ public class SQLConstants {
     
     /** The constant for checking existing booking in same slot time. */
     public static final String CHECK_EXISTING_BOOKING_SAME_TIME = 
-        "SELECT b.booking_id, b.slot_id, s.start_time, s.end_time FROM Booking b JOIN GymSlot s ON b.slot_id = s.slot_id WHERE b.customer_id = ? AND b.booking_date = ? AND b.booking_status = 'CONFIRMED'";
+        "SELECT b.booking_id, b.customer_id, b.slot_id, b.booking_date, b.booking_status FROM Booking b WHERE b.customer_id = ? AND b.booking_date = ?";
     
     /** The constant for updating booking status. */
     public static final String UPDATE_BOOKING_STATUS = 
@@ -289,9 +289,13 @@ public class SQLConstants {
     public static final String SELECT_WAITLIST_BY_SLOT = 
         "SELECT w.*, gc.user_id, u.name, u.email FROM WaitList w JOIN GymCustomer gc ON w.customer_id = gc.customer_id JOIN User u ON gc.user_id = u.user_id WHERE w.slot_id = ? AND w.status = 'WAITING' ORDER BY w.created_at";
     
-    /** The constant for selecting first waitlist entry. */
+    /** The constant for selecting first waitlist entry (by slot only - deprecated). */
     public static final String SELECT_FIRST_WAITLIST = 
         "SELECT * FROM WaitList WHERE slot_id = ? AND status = 'WAITING' ORDER BY created_at LIMIT 1";
+    
+    /** The constant for selecting first waitlist entry by slot AND date (date-specific). */
+    public static final String SELECT_FIRST_WAITLIST_BY_DATE = 
+        "SELECT * FROM WaitList WHERE slot_id = ? AND requested_date = ? AND status = 'WAITING' ORDER BY created_at LIMIT 1";
     
     /** The constant for updating waitlist status. */
     public static final String UPDATE_WAITLIST_STATUS = 
@@ -301,9 +305,13 @@ public class SQLConstants {
     public static final String DELETE_WAITLIST = 
         "DELETE FROM WaitList WHERE waitlist_id = ?";
     
-    /** The constant for checking if customer is in waitlist. */
+    /** The constant for checking if customer is in waitlist (by slot only). */
     public static final String CHECK_CUSTOMER_IN_WAITLIST = 
         "SELECT COUNT(*) FROM WaitList WHERE customer_id = ? AND slot_id = ? AND status = 'WAITING'";
+    
+    /** The constant for checking if customer is in waitlist for a specific date. */
+    public static final String CHECK_CUSTOMER_IN_WAITLIST_BY_DATE = 
+        "SELECT COUNT(*) as count FROM WaitList WHERE customer_id = ? AND slot_id = ? AND requested_date = ? AND status = 'WAITING'";
     
     // ========== NOTIFICATION QUERIES ==========
     

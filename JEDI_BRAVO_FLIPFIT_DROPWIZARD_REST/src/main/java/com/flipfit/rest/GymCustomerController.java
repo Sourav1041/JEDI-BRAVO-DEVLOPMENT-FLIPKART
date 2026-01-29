@@ -76,6 +76,55 @@ public class GymCustomerController {
     }
     
     /**
+     * Get available slots for a gym center on a specific date with date-specific availability.
+     * This is the key API for viewing "gym's availability for a particular day".
+     * 
+     * @param gymId The gym center ID
+     * @param dateStr The date (YYYY-MM-DD format)
+     * @return Response with slots showing date-specific availability
+     */
+    @GET
+    @Path("/slots/available/{gymId}/{date}")
+    public Response getAvailableSlotsForDate(
+            @PathParam("gymId") String gymId,
+            @PathParam("date") String dateStr) {
+        try {
+            LocalDate date = LocalDate.parse(dateStr);
+            List<GymSlot> slots = bookingService.viewAvailableSlots(gymId);
+            
+            // Enhance each slot with date-specific availability
+            List<Map<String, Object>> slotsWithAvailability = new java.util.ArrayList<>();
+            
+            for (GymSlot slot : slots) {
+                Map<String, Object> slotInfo = new HashMap<>();
+                slotInfo.put("slotId", slot.getSlotId());
+                slotInfo.put("gymId", slot.getGymId());
+                slotInfo.put("startTime", slot.getStartTime());
+                slotInfo.put("endTime", slot.getEndTime());
+                slotInfo.put("totalSeats", slot.getTotalSeats());
+                slotInfo.put("price", slot.getPrice());
+                slotInfo.put("isActive", slot.isActive());
+                
+                // Calculate date-specific availability
+                int bookedSeats = bookingService.countBookingsForSlotOnDate(slot.getSlotId(), date);
+                int availableSeats = slot.getTotalSeats() - bookedSeats;
+                
+                slotInfo.put("availableSeats", availableSeats);
+                slotInfo.put("bookedSeats", bookedSeats);
+                slotInfo.put("bookingDate", dateStr);
+                
+                slotsWithAvailability.add(slotInfo);
+            }
+            
+            return Response.ok(slotsWithAvailability).build();
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to fetch slots: " + e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(error).build();
+        }
+    }
+    
+    /**
      * Get all gym centers in a specific city.
      * 
      * @param city The city to search
@@ -106,11 +155,16 @@ public class GymCustomerController {
         try {
             String customerId = bookingData.get("customerId");
             String slotId = bookingData.get("slotId");
-            LocalDate bookingDate = LocalDate.parse(bookingData.get("bookingDate"));
+            String dateStr = bookingData.get("bookingDate");
+            
+            System.out.println("[DEBUG] Booking Request - Customer: " + customerId + ", Slot: " + slotId + ", Date: " + dateStr);
+            
+            LocalDate bookingDate = LocalDate.parse(dateStr);
             
             Booking booking = bookingService.bookSlot(customerId, slotId, bookingDate);
             
             if (booking != null) {
+                System.out.println("[SUCCESS] Booking created: " + booking.getBookingId());
                 Map<String, String> response = new HashMap<>();
                 response.put("message", "Slot booked successfully");
                 response.put("bookingId", booking.getBookingId());
@@ -119,16 +173,20 @@ public class GymCustomerController {
                 response.put("bookingDate", bookingDate.toString());
                 return Response.status(Response.Status.CREATED).entity(response).build();
             } else {
+                System.out.println("[ERROR] Booking returned null");
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Booking failed. Slot may be full or invalid.");
                 return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
             }
             
         } catch (BookingFailedException e) {
+            System.out.println("[ERROR] BookingFailedException: " + e.getMessage());
             Map<String, String> error = new HashMap<>();
             error.put("error", e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         } catch (Exception e) {
+            System.out.println("[ERROR] Exception: " + e.getMessage());
+            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("error", "Booking failed: " + e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(error).build();
@@ -146,7 +204,51 @@ public class GymCustomerController {
     public Response viewBookings(@PathParam("customerId") String customerId) {
         try {
             List<Booking> bookings = bookingService.viewMyBookings(customerId);
-            return Response.ok(bookings).build();
+            List<Map<String, Object>> enrichedBookings = new java.util.ArrayList<>();
+            
+            // Enhance each booking with slot and gym center details
+            for (Booking booking : bookings) {
+                Map<String, Object> bookingMap = new HashMap<>();
+                bookingMap.put("bookingId", booking.getBookingId());
+                bookingMap.put("customerId", booking.getCustomerId());
+                bookingMap.put("slotId", booking.getSlotId());
+                bookingMap.put("bookingDate", booking.getBookingDate());
+                bookingMap.put("bookingStatus", booking.getBookingStatus());
+                
+                try {
+                    java.sql.Connection conn = com.flipfit.utils.DBConnection.getConnection();
+                    java.sql.PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT s.start_time, s.end_time, g.gym_name " +
+                        "FROM GymSlot s " +
+                        "JOIN GymCenter g ON s.gym_id = g.gym_id " +
+                        "WHERE s.slot_id = ?"
+                    );
+                    stmt.setString(1, booking.getSlotId());
+                    java.sql.ResultSet rs = stmt.executeQuery();
+                    
+                    if (rs.next()) {
+                        bookingMap.put("gymName", rs.getString("gym_name"));
+                        bookingMap.put("startTime", rs.getTime("start_time").toLocalTime());
+                        bookingMap.put("endTime", rs.getTime("end_time").toLocalTime());
+                    } else {
+                        bookingMap.put("gymName", "Unknown");
+                        bookingMap.put("startTime", null);
+                        bookingMap.put("endTime", null);
+                    }
+                    rs.close();
+                    stmt.close();
+                } catch (Exception e) {
+                    System.err.println("Error fetching slot details for " + booking.getSlotId() + ": " + e.getMessage());
+                    e.printStackTrace();
+                    bookingMap.put("gymName", "Error");
+                    bookingMap.put("startTime", null);
+                    bookingMap.put("endTime", null);
+                }
+                
+                enrichedBookings.add(bookingMap);
+            }
+            
+            return Response.ok(enrichedBookings).build();
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Failed to fetch bookings: " + e.getMessage());

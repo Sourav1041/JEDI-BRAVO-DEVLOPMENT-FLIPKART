@@ -255,50 +255,54 @@ public class BookingDAOImpl implements BookingDAO {
      */
     @Override
     public boolean cancelBooking(String bookingId) {
+        // Get booking details first
+        Booking booking = getBookingById(bookingId);
+        if (booking == null || booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            return false;
+        }
+        
+        // Simply update booking status to CANCELLED
+        // No need to update available_seats since we calculate availability per date dynamically
+        return updateBookingStatus(bookingId, BookingStatus.CANCELLED);
+    }
+
+    /**
+     * Count confirmed bookings for a specific slot on a specific date.
+     * Used to calculate date-specific availability.
+     *
+     * @param slotId the slot ID
+     * @param date the booking date
+     * @return count of confirmed bookings
+     */
+    @Override
+    public int countBookingsForSlotOnDate(String slotId, LocalDate date) {
+        String query = "SELECT COUNT(*) as count FROM Booking " +
+                      "WHERE slot_id = ? AND booking_date = ? AND booking_status = 'CONFIRMED'";
         Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        
         try {
             conn = DBConnection.getConnection();
-            conn.setAutoCommit(false); // Start transaction
+            pstmt = conn.prepareStatement(query);
+            pstmt.setString(1, slotId);
+            pstmt.setDate(2, java.sql.Date.valueOf(date));
             
-            // Get booking details
-            Booking booking = getBookingById(bookingId);
-            if (booking == null || booking.getBookingStatus() == BookingStatus.CANCELLED) {
-                conn.rollback();
-                return false;
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("count");
             }
-            
-            // Update booking status to CANCELLED
-            boolean statusUpdated = updateBookingStatus(bookingId, BookingStatus.CANCELLED);
-            
-            // Increase available seats in slot
-            boolean seatsUpdated = slotDAO.updateAvailableSeats(booking.getSlotId(), 1);
-            
-            if (statusUpdated && seatsUpdated) {
-                conn.commit();
-                return true;
-            } else {
-                conn.rollback();
-                return false;
-            }
-            
+            return 0;
         } catch (SQLException e) {
-            System.err.println("Error cancelling booking: " + e.getMessage());
-            if (conn != null) {
-                try {
-                    conn.rollback();
-                } catch (SQLException ex) {
-                    System.err.println("Error rolling back transaction: " + ex.getMessage());
-                }
-            }
-            return false;
+            System.err.println("Error counting bookings for slot " + slotId + " on " + date + ": " + e.getMessage());
+            return 0;
         } finally {
-            if (conn != null) {
-                try {
-                    conn.setAutoCommit(true);
-                    conn.close();
-                } catch (SQLException e) {
-                    System.err.println("Error closing connection: " + e.getMessage());
-                }
+            try {
+                if (rs != null) rs.close();
+                if (pstmt != null) pstmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                System.err.println("Error closing connection: " + e.getMessage());
             }
         }
     }

@@ -128,4 +128,14 @@ public interface BookingService {
      * @return list of notifications
      */
     List<Notification> getNotifications(String userId);
+    
+    /**
+     * Count confirmed bookings for a specific slot on a specific date.
+     * Used to calculate date-specific availability.
+     *
+     * @param slotId the slot ID
+     * @param date the booking date
+     * @return count of confirmed bookings
+     */
+    int countBookingsForSlotOnDate(String slotId, LocalDate date);
 }

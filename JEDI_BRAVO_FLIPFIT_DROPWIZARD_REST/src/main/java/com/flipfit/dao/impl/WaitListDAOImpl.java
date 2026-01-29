@@ -133,6 +133,61 @@ public class WaitListDAOImpl implements WaitListDAO {
     }
     
     /**
+     * Get first waiting customer for a specific slot on a specific date.
+     * This is date-specific to ensure proper waitlist promotion.
+     *
+     * @param slotId the slot ID
+     * @param requestedDate the requested date
+     * @return the first waitlist entry for that slot and date, or null
+     */
+    @Override
+    public GymWaitList getFirstWaitingCustomerByDate(String slotId, java.time.LocalDate requestedDate) {
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(SQLConstants.SELECT_FIRST_WAITLIST_BY_DATE)) {
+            
+            pstmt.setString(1, slotId);
+            pstmt.setDate(2, Date.valueOf(requestedDate));
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToWaitList(rs);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting first waiting customer by date: " + e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
+     * Check if customer is already in waitlist for a specific slot on a specific date.
+     *
+     * @param customerId the customer ID
+     * @param slotId the slot ID
+     * @param requestedDate the requested date
+     * @return true if customer is already in waitlist
+     */
+    @Override
+    public boolean isCustomerInWaitlistByDate(String customerId, String slotId, java.time.LocalDate requestedDate) {
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(SQLConstants.CHECK_CUSTOMER_IN_WAITLIST_BY_DATE)) {
+            
+            pstmt.setString(1, customerId);
+            pstmt.setString(2, slotId);
+            pstmt.setDate(3, Date.valueOf(requestedDate));
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("count") > 0;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking customer in waitlist by date: " + e.getMessage());
+        }
+        return false;
+    }
+    
+    /**
      * Helper method to map ResultSet to GymWaitList object.
      *
      * @param rs the result set
